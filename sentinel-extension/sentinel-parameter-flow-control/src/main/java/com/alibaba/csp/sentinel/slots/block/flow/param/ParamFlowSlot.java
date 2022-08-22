@@ -37,12 +37,15 @@ public class ParamFlowSlot extends AbstractLinkedProcessorSlot<DefaultNode> {
     @Override
     public void entry(Context context, ResourceWrapper resourceWrapper, DefaultNode node, int count,
                       boolean prioritized, Object... args) throws Throwable {
+        // 如果没有设置热点规则，直接放行
         if (!ParamFlowRuleManager.hasRules(resourceWrapper.getName())) {
             fireEntry(context, resourceWrapper, node, count, prioritized, args);
             return;
         }
 
+        // 热点规则判断
         checkFlow(resourceWrapper, count, args);
+        // 进入下一个 slot
         fireEntry(context, resourceWrapper, node, count, prioritized, args);
     }
 
@@ -63,6 +66,13 @@ public class ParamFlowSlot extends AbstractLinkedProcessorSlot<DefaultNode> {
         }
     }
 
+    /**
+     * 热点规则判断采用了令牌桶算法来实现参数限流，为每一个不同参数值设置令牌桶，Sentinel的令牌桶有两部分组成：
+     * @param resourceWrapper
+     * @param count
+     * @param args
+     * @throws BlockException
+     */
     void checkFlow(ResourceWrapper resourceWrapper, int count, Object... args) throws BlockException {
         if (args == null) {
             return;

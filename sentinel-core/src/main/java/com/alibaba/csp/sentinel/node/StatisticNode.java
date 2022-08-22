@@ -90,6 +90,10 @@ import com.alibaba.csp.sentinel.util.function.Predicate;
 public class StatisticNode implements Node {
 
     /**
+     * 秒级统计
+     * SampleCountProperty.SAMPLE_COUNT：一个时间窗口中样本窗口的数量，默认为 2，就是把 1秒分为 2个小时间窗
+     * IntervalProperty.INTERVAL：是滑动窗口的时间间隔，默认为 1 秒
+     *
      * Holds statistics of the recent {@code INTERVAL} milliseconds. The {@code INTERVAL} is divided into time spans
      * by given {@code sampleCount}.
      */
@@ -97,6 +101,7 @@ public class StatisticNode implements Node {
         IntervalProperty.INTERVAL);
 
     /**
+     * 分钟级统计
      * Holds statistics of the recent 60 seconds. The windowLengthInMs is deliberately set to 1000 milliseconds,
      * meaning each bucket per second, in this way we can get accurate statistics of each second.
      */
@@ -198,6 +203,7 @@ public class StatisticNode implements Node {
 
     @Override
     public double passQps() {
+        // 请求量 ÷ 滑动窗口时间间隔 ，得到的就是QPS
         return rollingCounterInSecond.pass() / rollingCounterInSecond.getWindowIntervalInSec();
     }
 
@@ -244,6 +250,7 @@ public class StatisticNode implements Node {
 
     @Override
     public void addPassRequest(int count) {
+        // 秒、分两种纬度的统计，对应两个计数器
         rollingCounterInSecond.addPass(count);
         rollingCounterInMinute.addPass(count);
     }

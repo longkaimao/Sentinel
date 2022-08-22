@@ -33,18 +33,39 @@ import com.alibaba.csp.sentinel.util.TimeUtil;
  * {@code sampleCount = intervalInMs / windowLengthInMs}.
  * </p>
  *
+ * <p>
+ * LeapArray是一个环形数组，因为时间是无限的，数组长度不可能无限，因此数组中每一个格子放入一个时间窗（window），当数组放满后，角标归0，覆盖最初的window。
+ *
+ * 添加数据的时候，先判断当前走到哪个窗口了（当前时间(s) % 60 即可），然后需要判断这个窗口是否是过期数据，如果是过期数据（窗口代表的时间距离当前已经超过 1 分钟），需要先重置这个窗口实例的数据。
+ * 统计数据同理，如统计过去一分钟的 QPS 数据，就是将每个窗口的值相加，当中需要判断窗口数据是否是过期数据，即判断窗口的 WindowWrap 实例是否是一分钟内的数据。
+ * </p>
+ *
  * @param <T> type of statistic data
  * @author jialiang.linjl
  * @author Eric Zhao
  * @author Carpenter Lee
  */
 public abstract class LeapArray<T> {
-
+    /**
+     * 样本窗口长度
+     */
     protected int windowLengthInMs;
+    /**
+     * 一个时间窗中样本窗口的数量
+     */
     protected int sampleCount;
+    /**
+     * 滑动窗口的时间间隔，默认为 1000ms
+     */
     protected int intervalInMs;
+    /**
+     * 滑动窗口的时间间隔，单位为秒，默认为 1
+     */
     private double intervalInSecond;
 
+    /**
+     *  一个时间窗中每一个样本窗口，是一个WindowWrap对象
+     */
     protected final AtomicReferenceArray<WindowWrap<T>> array;
 
     /**
@@ -114,12 +135,15 @@ public abstract class LeapArray<T> {
      * @return current bucket item at provided timestamp if the time is valid; null if time is invalid
      */
     public WindowWrap<T> currentWindow(long timeMillis) {
+        //当前时间如果小于0，返回空
         if (timeMillis < 0) {
             return null;
         }
 
+        //计算时间窗口的索引
         int idx = calculateTimeIdx(timeMillis);
         // Calculate current bucket start time.
+        // 计算当前时间窗口的开始时间
         long windowStart = calculateWindowStart(timeMillis);
 
         /*
@@ -128,8 +152,16 @@ public abstract class LeapArray<T> {
          * (1) Bucket is absent, then just create a new bucket and CAS update to circular array.
          * (2) Bucket is up-to-date, then just return the bucket.
          * (3) Bucket is deprecated, then reset current bucket and clean all deprecated buckets.
+         *
+         * 先根据角标获取数组中保存的 oldWindow 对象，可能是旧数据，需要判断.
+         *
+         * (1) oldWindow 不存在, 说明是第一次，创建新 window并存入，然后返回即可
+         * (2) oldWindow的 starTime = 本次请求的 windowStar, 说明正是要找的窗口，直接返回.
+         * (3) oldWindow的 starTime < 本次请求的 windowStar, 说明是旧数据，需要被覆盖，创建
+         *     新窗口，覆盖旧窗口
          */
         while (true) {
+            //在窗口数组中获得窗口
             WindowWrap<T> old = array.get(idx);
             if (old == null) {
                 /*
@@ -143,13 +175,18 @@ public abstract class LeapArray<T> {
                  * If the old bucket is absent, then we create a new bucket at {@code windowStart},
                  * then try to update circular array via a CAS operation. Only one thread can
                  * succeed to update, while other threads yield its time slice.
+                 *
+                 * 比如当前时间是888，根据计算得到的数组窗口位置是个空，所以直接创建一个新窗口就好了
                  */
                 WindowWrap<T> window = new WindowWrap<T>(windowLengthInMs, windowStart, newEmptyBucket(timeMillis));
+                // 基于CAS写入数组，避免线程安全问题
                 if (array.compareAndSet(idx, null, window)) {
                     // Successfully updated, return the created bucket.
+                    // 写入成功，返回新的 window
                     return window;
                 } else {
                     // Contention failed, the thread will yield its time slice to wait for bucket available.
+                    // 写入失败，说明有并发更新，等待其它人更新完成即可
                     Thread.yield();
                 }
             } else if (windowStart == old.windowStart()) {
@@ -163,6 +200,8 @@ public abstract class LeapArray<T> {
                  *
                  * If current {@code windowStart} is equal to the start timestamp of old bucket,
                  * that means the time is within the bucket, so directly return the bucket.
+                 *
+                 * 这个更好了，刚好等于，直接返回就行
                  */
                 return old;
             } else if (windowStart > old.windowStart()) {
@@ -182,19 +221,25 @@ public abstract class LeapArray<T> {
                  *
                  * The update lock is conditional (tiny scope) and will take effect only when
                  * bucket is deprecated, so in most cases it won't lead to performance loss.
+                 *
+                 *  这个要当成圆形理解就好了，之前如果是1200一个完整的圆形，然后继续从1200开始，如果现在时间是1676，落在在B2的位置，
+                 *  窗口开始时间是1600，获取到的old时间其实会是600，所以肯定是过期了，直接重置窗口就可以了
                  */
                 if (updateLock.tryLock()) {
                     try {
                         // Successfully get the update lock, now we reset the bucket.
+                        // 获取并发锁，覆盖旧窗口并返回
                         return resetWindowTo(old, windowStart);
                     } finally {
                         updateLock.unlock();
                     }
                 } else {
                     // Contention failed, the thread will yield its time slice to wait for bucket available.
+                    // 获取锁失败，等待其它线程处理就可以了
                     Thread.yield();
                 }
             } else if (windowStart < old.windowStart()) {
+                // 这个不太可能出现。除非是时钟回拨
                 // Should not go through here, as the provided time is already behind.
                 return new WindowWrap<T>(windowLengthInMs, windowStart, newEmptyBucket(timeMillis));
             }
@@ -268,6 +313,8 @@ public abstract class LeapArray<T> {
     }
 
     public boolean isWindowDeprecated(long time, WindowWrap<T> windowWrap) {
+        // 当前时间 - 窗口开始时间  是否大于 滑动窗口的最大间隔（1秒）
+        // 也就是说，我们要统计的时 距离当前时间1秒内的 小窗口的 count之和
         return time - windowWrap.windowStart() > intervalInMs;
     }
 
@@ -330,16 +377,23 @@ public abstract class LeapArray<T> {
         if (timeMillis < 0) {
             return new ArrayList<T>();
         }
+        // 创建空集合，大小等于 LeapArray长度
         int size = array.length();
         List<T> result = new ArrayList<T>(size);
 
+        // 遍历 LeapArray
         for (int i = 0; i < size; i++) {
+            // 获取每一个小窗口
             WindowWrap<T> windowWrap = array.get(i);
+            // 判断这个小窗口是否在 滑动窗口时间范围内（1秒内）
             if (windowWrap == null || isWindowDeprecated(timeMillis, windowWrap)) {
+                // 不在范围内，则跳过
                 continue;
             }
+            // 在范围内，则添加到集合中
             result.add(windowWrap.value());
         }
+        // 返回集合
         return result;
     }
 

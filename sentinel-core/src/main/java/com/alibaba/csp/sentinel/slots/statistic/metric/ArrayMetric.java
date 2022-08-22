@@ -106,11 +106,15 @@ public class ArrayMetric implements Metric {
 
     @Override
     public long pass() {
+        // 获取当前窗口
         data.currentWindow();
         long pass = 0;
+        // 获取 当前时间的 滑动窗口范围内 的所有小窗口
         List<MetricBucket> list = data.values();
 
+        // 遍历所有时间范围内的小窗口，进行QPS的累加
         for (MetricBucket window : list) {
+            // 累加求和
             pass += window.pass();
         }
         return pass;
@@ -241,7 +245,9 @@ public class ArrayMetric implements Metric {
 
     @Override
     public void addPass(int count) {
+        // 获取当前时间所在的时间窗
         WindowWrap<MetricBucket> wrap = data.currentWindow();
+        // 计数器 +1
         wrap.value().addPass(count);
     }
 

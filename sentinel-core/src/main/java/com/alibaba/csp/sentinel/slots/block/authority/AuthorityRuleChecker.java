@@ -28,18 +28,22 @@ import com.alibaba.csp.sentinel.util.StringUtil;
 final class AuthorityRuleChecker {
 
     static boolean passCheck(AuthorityRule rule, Context context) {
+        // 得到请求来源 origin
         String requester = context.getOrigin();
 
         // Empty origin or empty limitApp will pass.
+        // 来源为空，或者规则为空，都直接放行
         if (StringUtil.isEmpty(requester) || StringUtil.isEmpty(rule.getLimitApp())) {
             return true;
         }
 
         // Do exact match with origin name.
+        // rule.getLimitApp()得到的就是 白名单 或 黑名单 的字符串
         int pos = rule.getLimitApp().indexOf(requester);
         boolean contain = pos > -1;
 
         if (contain) {
+            // 如果包含 origin，还要进一步做精确判断，把名单列表以","分割，逐个判断
             boolean exactlyMatch = false;
             String[] appArray = rule.getLimitApp().split(",");
             for (String app : appArray) {
@@ -53,14 +57,17 @@ final class AuthorityRuleChecker {
         }
 
         int strategy = rule.getStrategy();
+        // 如果是黑名单，并且包含origin，则返回false
         if (strategy == RuleConstant.AUTHORITY_BLACK && contain) {
             return false;
         }
 
+        // 如果是白名单，并且不包含origin，则返回false
         if (strategy == RuleConstant.AUTHORITY_WHITE && !contain) {
             return false;
         }
 
+        // 其它情况返回true
         return true;
     }
 

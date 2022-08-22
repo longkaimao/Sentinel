@@ -48,38 +48,47 @@ public class FlowRule extends AbstractRule {
 
     /**
      * The threshold type of flow control (0: thread count, 1: QPS).
+     * 阈值类型 (0: 线程, 1: QPS).
      */
     private int grade = RuleConstant.FLOW_GRADE_QPS;
 
     /**
      * Flow control threshold count.
+     * 阈值.
      */
     private double count;
 
     /**
      * Flow control strategy based on invocation chain.
+     * 三种限流模式.
      *
-     * {@link RuleConstant#STRATEGY_DIRECT} for direct flow control (by origin);
-     * {@link RuleConstant#STRATEGY_RELATE} for relevant flow control (with relevant resource);
-     * {@link RuleConstant#STRATEGY_CHAIN} for chain flow control (by entrance resource).
+     * {@link RuleConstant#STRATEGY_DIRECT} for direct flow control (by origin); 直连模式;
+     * {@link RuleConstant#STRATEGY_RELATE} for relevant flow control (with relevant resource); 关联模式;
+     * {@link RuleConstant#STRATEGY_CHAIN} for chain flow control (by entrance resource). 链路模式.
      */
     private int strategy = RuleConstant.STRATEGY_DIRECT;
 
     /**
      * Reference resource in flow control with relevant resource or context.
+     * 关联模式关联的资源名称.
      */
     private String refResource;
 
     /**
      * Rate limiter control behavior.
      * 0. default(reject directly), 1. warm up, 2. rate limiter, 3. warm up + rate limiter
+     * 3种流控效果：0. 快速失败, 1. warm up, 2. 排队等待, 3. warm up + 排队等待
      */
     private int controlBehavior = RuleConstant.CONTROL_BEHAVIOR_DEFAULT;
 
+    /**
+     * 预热时长
+     */
     private int warmUpPeriodSec = 10;
 
     /**
      * Max queueing time in rate limiter behavior.
+     * 队列最大等待时间.
      */
     private int maxQueueingTimeMs = 500;
 

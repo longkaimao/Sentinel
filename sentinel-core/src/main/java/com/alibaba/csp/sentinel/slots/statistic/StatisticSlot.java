@@ -33,6 +33,9 @@ import com.alibaba.csp.sentinel.slotchain.ResourceWrapper;
 import com.alibaba.csp.sentinel.slots.block.BlockException;
 
 /**
+ * StatisticSlot负责统计实时调用数据，包括运行信息（访问次数、线程数）、来源信息等。
+ * StatisticSlot是实现限流的关键，其中基于滑动时间窗口算法维护了计数器，统计进入某个资源的请求次数。
+ *
  * <p>
  * A processor slot that dedicates to real time statistics.
  * When entering this slot, we need to separately count the following
@@ -51,29 +54,49 @@ import com.alibaba.csp.sentinel.slots.block.BlockException;
 @Spi(order = Constants.ORDER_STATISTIC_SLOT)
 public class StatisticSlot extends AbstractLinkedProcessorSlot<DefaultNode> {
 
+    /**
+     * StatisticSlot在责任链中的调用入口
+     * 在demo中调用SphO.entry进入获取token逻辑
+     * 通过前面的Slot后到达这里
+     * @param context         current {@link Context}
+     * @param resourceWrapper current resource
+     * @param node            resource node
+     * @param count           tokens needed
+     * @param args            parameters of the original call
+     * @throws Throwable
+     */
     @Override
     public void entry(Context context, ResourceWrapper resourceWrapper, DefaultNode node, int count,
                       boolean prioritized, Object... args) throws Throwable {
         try {
             // Do some checking.
+            // 直接出发下游的slot entry操作，做限流、降级等判断。如果没有被限制，才会记录此次请求的信息
             fireEntry(context, resourceWrapper, node, count, prioritized, args);
 
             // Request passed, add thread count and pass count.
+            // 如果到达这里说明获取token成功，可以继续操作
+            // 首先增加访问资源的并发线程数，线程计数器 +1 ，用作线程隔离
             node.increaseThreadNum();
+            // 然后，请求计数器 +1， 用作限流
             node.addPassRequest(count);
 
+            // 如果在调用entry之前指定了调用的origin，即调用方
             if (context.getCurEntry().getOriginNode() != null) {
                 // Add count for origin node.
+                // 如果有 origin，来源计数器也都要 +1
                 context.getCurEntry().getOriginNode().increaseThreadNum();
                 context.getCurEntry().getOriginNode().addPassRequest(count);
             }
 
+            // 这里应该是一个全局的统计吧
             if (resourceWrapper.getEntryType() == EntryType.IN) {
+                // 如果是入口资源，还要给全局计数器 +1.
                 // Add count for global inbound entry node for global statistics.
                 Constants.ENTRY_NODE.increaseThreadNum();
                 Constants.ENTRY_NODE.addPassRequest(count);
             }
 
+            // 请求通过后的回调.
             // Handle pass event with registered entry callback handlers.
             for (ProcessorSlotEntryCallback<DefaultNode> handler : StatisticSlotCallbackRegistry.getEntryCallbacks()) {
                 handler.onPass(context, resourceWrapper, node, count, args);
@@ -97,8 +120,11 @@ public class StatisticSlot extends AbstractLinkedProcessorSlot<DefaultNode> {
             // Blocked, set block exception to current entry.
             context.getCurEntry().setBlockError(e);
 
+            // 如果触发了BlockException，则说明获取token失败，被限流
+            // 因此增加当前秒Block的请求数
             // Add block count.
             node.increaseBlockQps(count);
+            //这里是针对调用方origin的统计
             if (context.getCurEntry().getOriginNode() != null) {
                 context.getCurEntry().getOriginNode().increaseBlockQps(count);
             }
@@ -122,6 +148,14 @@ public class StatisticSlot extends AbstractLinkedProcessorSlot<DefaultNode> {
         }
     }
 
+    /**
+     * 在demo中调用SphO.exit进入获取token逻辑
+     * 通过前面的Slot后到达这里
+     * @param context         current {@link Context}
+     * @param resourceWrapper current resource
+     * @param count           tokens needed
+     * @param args            parameters of the original call
+     */
     @Override
     public void exit(Context context, ResourceWrapper resourceWrapper, int count, Object... args) {
         Node node = context.getCurNode();

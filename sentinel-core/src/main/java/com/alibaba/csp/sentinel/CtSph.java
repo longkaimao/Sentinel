@@ -116,33 +116,46 @@ public class CtSph implements Sph {
 
     private Entry entryWithPriority(ResourceWrapper resourceWrapper, int count, boolean prioritized, Object... args)
         throws BlockException {
+        // 从 ThreadLocal 中获取 Context 实例
         Context context = ContextUtil.getContext();
+
+        // 如果是 NullContext，那么说明 context name 超过了 2000 个，参见 ContextUtil#trueEnter
+        // 这个时候，Sentinel 不再接受处理新的 context 配置，也就是不做这些新的接口的统计、限流熔断等
         if (context instanceof NullContext) {
             // The {@link NullContext} indicates that the amount of context has exceeded the threshold,
             // so here init the entry only. No rule checking will be done.
             return new CtEntry(resourceWrapper, null, context);
         }
 
+        // 如果我们不显式调用 ContextUtil#enter，这里会进入到默认的 context 中
         if (context == null) {
             // Using default context.
             context = InternalContextUtil.internalEnter(Constants.CONTEXT_DEFAULT_NAME);
         }
 
+        // Sentinel 的全局开关，Sentinel 提供了接口让用户可以在 dashboard 开启/关闭
         // Global switch is close, no rule checking will do.
         if (!Constants.ON) {
             return new CtEntry(resourceWrapper, null, context);
         }
 
+        // 设计模式中的责任链模式。
+        // 下面这行代码用于构建一个责任链，入参是 resource，前面我们说过资源的唯一标识是 resource name
+        // 核心就是通过SPI机制，加载所有的slot
         ProcessorSlot<Object> chain = lookProcessChain(resourceWrapper);
 
         /*
          * Means amount of resources (slot chain) exceeds {@link Constants.MAX_SLOT_CHAIN_SIZE},
          * so no rule checking will be done.
          */
+        // 根据 lookProcessChain 方法，我们知道，当 resource 超过 Constants.MAX_SLOT_CHAIN_SIZE，
+        // 也就是 6000 的时候，Sentinel 开始不处理新的请求，这么做主要是为了 Sentinel 的性能考虑
         if (chain == null) {
             return new CtEntry(resourceWrapper, null, context);
         }
 
+        // 执行这个责任链。如果抛出 BlockException，说明链上的某一环拒绝了该请求，
+        // 把这个异常往上层业务层抛，业务层处理 BlockException 应该进入到熔断降级逻辑中
         Entry e = new CtEntry(resourceWrapper, chain, context);
         try {
             chain.entry(context, resourceWrapper, null, count, prioritized, args);

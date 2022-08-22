@@ -77,30 +77,36 @@ public class ClusterBuilderSlot extends AbstractLinkedProcessorSlot<DefaultNode>
     public void entry(Context context, ResourceWrapper resourceWrapper, DefaultNode node, int count,
                       boolean prioritized, Object... args)
         throws Throwable {
+        // 判空，注意ClusterNode是共享的成员变量，也就是说一个资源只有一个ClusterNode，与链路无关
         if (clusterNode == null) {
             synchronized (lock) {
                 if (clusterNode == null) {
+                    // 创建 cluster node.
                     // Create the cluster node.
                     clusterNode = new ClusterNode(resourceWrapper.getName(), resourceWrapper.getResourceType());
                     HashMap<ResourceWrapper, ClusterNode> newMap = new HashMap<>(Math.max(clusterNodeMap.size(), 16));
                     newMap.putAll(clusterNodeMap);
+                    // 放入缓存，可以是nodeId，也就是resource名称
                     newMap.put(node.getId(), clusterNode);
 
                     clusterNodeMap = newMap;
                 }
             }
         }
+        // 将资源的 DefaultNode与 ClusterNode关联
         node.setClusterNode(clusterNode);
 
         /*
          * if context origin is set, we should get or create a new {@link Node} of
          * the specific origin.
          */
+        // 记录请求来源 origin 将 origin放入 entry
         if (!"".equals(context.getOrigin())) {
             Node originNode = node.getClusterNode().getOrCreateOriginNode(context.getOrigin());
             context.getCurEntry().setOriginNode(originNode);
         }
 
+        // 继续下一个slot
         fireEntry(context, resourceWrapper, node, count, prioritized, args);
     }
 

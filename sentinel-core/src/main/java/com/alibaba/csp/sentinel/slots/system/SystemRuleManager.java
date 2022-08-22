@@ -297,27 +297,32 @@ public final class SystemRuleManager {
         }
 
         // for inbound traffic only
+        // 只针对入口资源做校验，其它直接返回
         if (resourceWrapper.getEntryType() != EntryType.IN) {
             return;
         }
 
         // total qps
+        // 全局 QPS校验
         double currentQps = Constants.ENTRY_NODE == null ? 0.0 : Constants.ENTRY_NODE.passQps();
         if (currentQps + count > qps) {
             throw new SystemBlockException(resourceWrapper.getName(), "qps");
         }
 
         // total thread
+        // 全局 线程数 校验
         int currentThread = Constants.ENTRY_NODE == null ? 0 : Constants.ENTRY_NODE.curThreadNum();
         if (currentThread > maxThread) {
             throw new SystemBlockException(resourceWrapper.getName(), "thread");
         }
 
+        // 全局平均 RT校验
         double rt = Constants.ENTRY_NODE == null ? 0 : Constants.ENTRY_NODE.avgRt();
         if (rt > maxRt) {
             throw new SystemBlockException(resourceWrapper.getName(), "rt");
         }
 
+        // 全局 系统负载 校验
         // load. BBR algorithm.
         if (highestSystemLoadIsSet && getCurrentSystemAvgLoad() > highestSystemLoad) {
             if (!checkBbr(currentThread)) {
@@ -325,6 +330,7 @@ public final class SystemRuleManager {
             }
         }
 
+        // 全局 CPU使用率 校验
         // cpu usage
         if (highestCpuUsageIsSet && getCurrentCpuUsage() > highestCpuUsage) {
             throw new SystemBlockException(resourceWrapper.getName(), "cpu");

@@ -130,8 +130,24 @@ public class NodeSelectorSlot extends AbstractLinkedProcessorSlot<Object> {
     /**
      * {@link DefaultNode}s of the same resource in different context.
      */
+    // key 是 context name, value 是 DefaultNode 实例
     private volatile Map<String, DefaultNode> map = new HashMap<String, DefaultNode>(10);
 
+    /**
+     * 主要完成以下四件事：
+     * 1. 为当前资源创建 DefaultNode
+     * 2. 将DefaultNode放入缓存中，key是contextName，这样不同链路入口的请求，将会创建多个DefaultNode，相同链路则只有一个DefaultNode
+     * 3. 将当前资源的DefaultNode设置为上一个资源的childNode
+     * 4. 将当前资源的DefaultNode设置为Context中的curNode（当前节点）
+     *
+     * @param context         current {@link Context}
+     * @param resourceWrapper current resource
+     * @param obj
+     * @param count           tokens needed
+     * @param prioritized     whether the entry is prioritized
+     * @param args            parameters of the original call
+     * @throws Throwable
+     */
     @Override
     public void entry(Context context, ResourceWrapper resourceWrapper, Object obj, int count, boolean prioritized, Object... args)
         throws Throwable {
@@ -153,24 +169,31 @@ public class NodeSelectorSlot extends AbstractLinkedProcessorSlot<Object> {
          * The answer is all {@link DefaultNode}s with same resource name share one
          * {@link ClusterNode}. See {@link ClusterBuilderSlot} for detail.
          */
+        // 尝试获取 当前资源的 DefaultNode
         DefaultNode node = map.get(context.getName());
         if (node == null) {
             synchronized (this) {
                 node = map.get(context.getName());
                 if (node == null) {
+                    // 如果为空，为当前资源创建一个新的 DefaultNode
                     node = new DefaultNode(resourceWrapper, null);
                     HashMap<String, DefaultNode> cacheMap = new HashMap<String, DefaultNode>(map.size());
                     cacheMap.putAll(map);
+                    // 放入缓存中，注意这里的 key是contextName，
+                    // 这样不同链路进入相同资源，就会创建多个 DefaultNode
                     cacheMap.put(context.getName(), node);
                     map = cacheMap;
                     // Build invocation tree
+                    // 当前节点加入上一节点的 child中，这样就构成了调用链路树
                     ((DefaultNode) context.getLastNode()).addChild(node);
                 }
 
             }
         }
 
+        // context中的curNode（当前节点）设置为新的 node
         context.setCurNode(node);
+        // 执行下一个 slot
         fireEntry(context, resourceWrapper, node, count, prioritized, args);
     }
 

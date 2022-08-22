@@ -46,9 +46,12 @@ public class FlowRuleChecker {
         if (ruleProvider == null || resource == null) {
             return;
         }
+        // 获取当前资源的所有限流规则
         Collection<FlowRule> rules = ruleProvider.apply(resource.getName());
         if (rules != null) {
+            // 遍历所有该资源的限流规则，逐个做校验
             for (FlowRule rule : rules) {
+                // 如果校验不通过，则直接抛出异常
                 if (!canPassCheck(rule, context, node, count, prioritized)) {
                     throw new FlowException(rule.getLimitApp(), rule);
                 }
@@ -63,25 +66,34 @@ public class FlowRuleChecker {
 
     public boolean canPassCheck(/*@NonNull*/ FlowRule rule, Context context, DefaultNode node, int acquireCount,
                                                     boolean prioritized) {
+        // 获取限流资源名称
         String limitApp = rule.getLimitApp();
         if (limitApp == null) {
             return true;
         }
 
+        // 如果是集群模式
         if (rule.isClusterMode()) {
             return passClusterCheck(rule, context, node, acquireCount, prioritized);
         }
 
+        // 校验规则
         return passLocalCheck(rule, context, node, acquireCount, prioritized);
     }
 
     private static boolean passLocalCheck(FlowRule rule, Context context, DefaultNode node, int acquireCount,
                                           boolean prioritized) {
+        // 基于限流模式判断要统计的节点，
+        // 如果是直连模式，关联模式，对ClusterNode统计，如果是链路模式，则对DefaultNode统计
         Node selectedNode = selectNodeByRequesterAndStrategy(rule, context, node);
         if (selectedNode == null) {
             return true;
         }
 
+        // 先通过FlowRule#getRater()获取流量控制器TrafficShapingController，然后再做限流。
+        // DefaultController：快速失败，默认的方式，基于滑动时间窗口算法
+        // WarmUpController：预热模式，基于滑动时间窗口算法，只不过阈值是动态的
+        // RateLimiterController：排队等待模式，基于漏桶算法
         return rule.getRater().canPass(selectedNode, acquireCount, prioritized);
     }
 
