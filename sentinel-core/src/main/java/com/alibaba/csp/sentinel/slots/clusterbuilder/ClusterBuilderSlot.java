@@ -50,6 +50,10 @@ import com.alibaba.csp.sentinel.spi.Spi;
 public class ClusterBuilderSlot extends AbstractLinkedProcessorSlot<DefaultNode> {
 
     /**
+     * 主要逻辑：
+     * 1、创建一个ClusterNode
+     * 2、放到缓存中
+     * 3、设置当前node的cluster为1中创建的ClusterNode
      * <p>
      * Remember that same resource({@link ResourceWrapper#equals(Object)}) will share
      * the same {@link ProcessorSlotChain} globally, no matter in which context. So if
@@ -81,19 +85,19 @@ public class ClusterBuilderSlot extends AbstractLinkedProcessorSlot<DefaultNode>
         if (clusterNode == null) {
             synchronized (lock) {
                 if (clusterNode == null) {
-                    // 创建 cluster node.
+                    // 1、创建 cluster node.
                     // Create the cluster node.
                     clusterNode = new ClusterNode(resourceWrapper.getName(), resourceWrapper.getResourceType());
                     HashMap<ResourceWrapper, ClusterNode> newMap = new HashMap<>(Math.max(clusterNodeMap.size(), 16));
                     newMap.putAll(clusterNodeMap);
-                    // 放入缓存，可以是nodeId，也就是resource名称
+                    // 2、放入缓存，可以是nodeId，也就是resource名称
                     newMap.put(node.getId(), clusterNode);
 
                     clusterNodeMap = newMap;
                 }
             }
         }
-        // 将资源的 DefaultNode与 ClusterNode关联
+        // 3、、将资源的 DefaultNode与 ClusterNode关联
         node.setClusterNode(clusterNode);
 
         /*

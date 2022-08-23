@@ -26,6 +26,8 @@ import com.alibaba.csp.sentinel.util.AssertUtil;
 
 /**
  * <p>
+ * Sentinel 使用 ClusterNode 统计每个资源全局的指标数据，以及统计该资源按调用来源区分的指标数据。全局数据指的是不区分调用链路，一个资源 ID（Resource） 只对应一个 ClusterNode。
+ *
  * This class stores summary runtime statistics of the resource, including rt, thread count, qps
  * and so on. Same resource shares the same {@link ClusterNode} globally, no matter in which
  * {@link com.alibaba.csp.sentinel.context.Context}.
@@ -43,8 +45,9 @@ import com.alibaba.csp.sentinel.util.AssertUtil;
  * @author jialiang.linjl
  */
 public class ClusterNode extends StatisticNode {
-
+    // 资源名称
     private final String name;
+    // 资源类型
     private final int resourceType;
 
     public ClusterNode(String name) {
@@ -58,6 +61,7 @@ public class ClusterNode extends StatisticNode {
     }
 
     /**
+     * 来源指标数据统计,记录不同来源App的统计信息。
      * <p>The origin map holds the pair: (origin, originNode) for one specific resource.</p>
      * <p>
      * The longer the application runs, the more stable this mapping will become.

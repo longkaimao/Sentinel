@@ -28,6 +28,7 @@ import com.alibaba.csp.sentinel.slots.statistic.metric.occupy.OccupiableBucketLe
 import com.alibaba.csp.sentinel.util.function.Predicate;
 
 /**
+ * 滑动窗口数据结构入口类
  * The basic metric class in Sentinel using a {@link BucketLeapArray} internal.
  *
  * @author jialiang.linjl
@@ -37,6 +38,11 @@ public class ArrayMetric implements Metric {
 
     private final LeapArray<MetricBucket> data;
 
+    /**
+     *
+     * @param sampleCount  在一个采集间隔中抽样的个数，默认为 2，即一个采集间隔中会包含两个相等的区间，一个区间就是一个窗口。
+     * @param intervalInMs 表示窗口的时间间隔，即滑动窗口的总时间，例如1分钟、1秒
+     */
     public ArrayMetric(int sampleCount, int intervalInMs) {
         this.data = new OccupiableBucketLeapArray(sampleCount, intervalInMs);
     }

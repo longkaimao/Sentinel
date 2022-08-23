@@ -83,11 +83,24 @@ public abstract class AbstractSentinelInterceptor implements HandlerInterceptor 
         request.setAttribute(rcKey, newRc);
         return newRc;
     }
-    
+
+    /**
+     * 拦截器完成：
+     * 1. 创建Context和EntranceNode
+     * 2. 执行资源的流控入口
+     * 3. 处理异常
+     * 4. 清除资源的Context
+     * @param request
+     * @param response
+     * @param handler
+     * @return
+     * @throws Exception
+     */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
         throws Exception {
         try {
+            // 得到资源名称
             String resourceName = getResourceName(request);
 
             if (StringUtil.isEmpty(resourceName)) {
@@ -100,15 +113,20 @@ public abstract class AbstractSentinelInterceptor implements HandlerInterceptor 
             
             // Parse the request origin using registered origin parser.
             String origin = parseOrigin(request);
+            // 得到上下文名称，后面用于创建入口Node
             String contextName = getContextName(request);
+            // 1. 创建Context和EntranceNode
             ContextUtil.enter(contextName, origin);
+            // 2. 执行此资源的流控入口
             Entry entry = SphU.entry(resourceName, ResourceTypeConstants.COMMON_WEB, EntryType.IN);
             request.setAttribute(baseWebMvcConfig.getRequestAttributeName(), entry);
             return true;
         } catch (BlockException e) {
             try {
+                // 如果被限流了，则处理异常
                 handleBlockException(request, response, e);
             } finally {
+                // 3. 最后要调用exit清除上下文数据，实际上就是把保存在ThreadLocal中的Context清空
                 ContextUtil.exit();
             }
             return false;

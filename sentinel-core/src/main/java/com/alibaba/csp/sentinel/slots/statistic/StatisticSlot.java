@@ -75,9 +75,9 @@ public class StatisticSlot extends AbstractLinkedProcessorSlot<DefaultNode> {
 
             // Request passed, add thread count and pass count.
             // 如果到达这里说明获取token成功，可以继续操作
-            // 首先增加访问资源的并发线程数，线程计数器 +1 ，用作线程隔离
+            // 首先增加访问资源的并发线程数，线程计数器 +1 ，用作线程隔离。注意，这里会同时给DefaultNode和ClusterNode增加
             node.increaseThreadNum();
-            // 然后，请求计数器 +1， 用作限流
+            // 然后，请求计数器（QPS） +1， 用作限流。注意，这里会同时给DefaultNode和ClusterNode增加。这里用到了滑动窗口来计数
             node.addPassRequest(count);
 
             // 如果在调用entry之前指定了调用的origin，即调用方

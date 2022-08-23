@@ -20,6 +20,7 @@ import com.alibaba.csp.sentinel.slots.statistic.MetricEvent;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
+ * 代表了在某一个时间窗口内的所有数据，如RT、Success、Pass、Block等等。
  * Represents metrics data in a period of time span.
  *
  * @author jialiang.linjl
@@ -27,8 +28,14 @@ import java.util.concurrent.atomic.LongAdder;
  */
 public class MetricBucket {
 
+    /**
+     * 存储各事件的计数，比如异常总数、请求总数等
+     */
     private final LongAdder[] counters;
 
+    /**
+     * 这段事件内的最小耗时
+     */
     private volatile long minRt;
 
     public MetricBucket() {

@@ -47,24 +47,34 @@ import com.alibaba.csp.sentinel.util.TimeUtil;
  */
 public abstract class LeapArray<T> {
     /**
-     * 样本窗口长度
+     * 每一个小窗口（样本窗口）的长度  =  intervalInMs / sampleCount
+     * 对于秒级，其值是500
+     * 对于分钟级，其值是1000
      */
     protected int windowLengthInMs;
     /**
      * 一个时间窗中样本窗口的数量
+     * 对于秒级，其值是2
+     * 对于分钟级，其值是60
      */
     protected int sampleCount;
     /**
-     * 滑动窗口的时间间隔，默认为 1000ms
+     * 一个时间窗口的长度，单位为毫秒
+     * 对于秒级，其值是1000
+     * 对于分钟级，其值是60000
      */
     protected int intervalInMs;
     /**
-     * 滑动窗口的时间间隔，单位为秒，默认为 1
+     * 一个时间窗口的长度，单位为秒，= intervalInMs / 1000
+     * 对于秒级，其值是：1
+     * 对于分钟级，其值是：60
      */
     private double intervalInSecond;
 
     /**
-     *  一个时间窗中每一个样本窗口，是一个WindowWrap对象
+     *  一个时间窗中每一个样本窗口，是一个WindowWrap对象数组
+     *  由构造函数中的this.array = new AtomicReferenceArray<>(sampleCount)
+     *  可知：array最大只有sampleCount个元素，这是一个环形数组
      */
     protected final AtomicReferenceArray<WindowWrap<T>> array;
 
@@ -83,12 +93,15 @@ public abstract class LeapArray<T> {
         AssertUtil.isTrue(sampleCount > 0, "bucket count is invalid: " + sampleCount);
         AssertUtil.isTrue(intervalInMs > 0, "total time interval of the sliding window should be positive");
         AssertUtil.isTrue(intervalInMs % sampleCount == 0, "time span needs to be evenly divided");
-
+        // 单个窗口桶的时间长度(以毫秒为单位) = 总时间长度 / 样本窗口数量。在秒级统计中，是1000/2=500
         this.windowLengthInMs = intervalInMs / sampleCount;
+        // 总时间跨度，以毫秒为单位
         this.intervalInMs = intervalInMs;
+        // 总时间跨度，以秒为单位
         this.intervalInSecond = intervalInMs / 1000.0;
+        // 数组长度，即样本窗口的个数
         this.sampleCount = sampleCount;
-
+        // 数组元素为WindowWrap，WindowWrap保存了MetricBucket，在它内部才保存真正的指标数据
         this.array = new AtomicReferenceArray<>(sampleCount);
     }
 
@@ -118,17 +131,42 @@ public abstract class LeapArray<T> {
      */
     protected abstract WindowWrap<T> resetWindowTo(WindowWrap<T> windowWrap, long startTime);
 
+    /**
+     * 获取窗口位置的算法：（当前时间/样本窗口长度）% 样本窗口个数
+     * 注意：这里返回的是每一个区间窗口内样本窗口的位置
+     *
+     * 先将当前时间按照统计时长分段，得到当前时间对应的分段ID。
+     * 因为窗口数组是固定的，所以随着时间线向前发展，会不断的顺序循环使用数组中的窗口。
+     * 所以使用当前时间对应的分段ID与窗口数组的长度求余得到当前时间对应的窗口在窗口数组中的下标，
+     * 拿到这个下标后，接着就是在循环中获取这个下标对应的窗口了。
+     * @param timeMillis 当前时间
+     * @return
+     */
     private int calculateTimeIdx(/*@Valid*/ long timeMillis) {
+        // 当前时间所属的分段ID = 当前时间 / 每个小窗口的长度
+        // 比如windowLengthInMs=500，则1-499的分段ID都为0，500-999的分段ID为1,1000-1499的分段ID为2,1500-1999的分段ID为3，
+        // 虽然这个分段ID可能会很大，但经过下一步的取模后，就只可能落在某个窗口了。
         long timeId = timeMillis / windowLengthInMs;
         // Calculate current index so we can map the timestamp to the leap array.
+        // 当前时间所属的窗口序号 = 分段ID % 样本窗口数量，其最终的值只可能在0-样本窗口数量之间
         return (int)(timeId % array.length());
     }
 
+
+    /**
+     * 计算当前窗口的开始时间：当前时间-当前时间 % 窗口长度
+     * @param timeMillis
+     * @return
+     */
     protected long calculateWindowStart(/*@Valid*/ long timeMillis) {
         return timeMillis - timeMillis % windowLengthInMs;
     }
 
     /**
+     * 1、先计算当前时间在窗口中的位置，得到当前窗口
+     * 2、再计算当前窗口的开始时间
+     * 3、比较当前时间和窗口的开始时间，进行处理：要么新建窗口并返回当前窗口，要么直接返回当前窗口，要么重置窗口后返回当前窗口
+     *
      * Get bucket item at provided timestamp.
      *
      * @param timeMillis a valid timestamp in milliseconds
@@ -153,15 +191,17 @@ public abstract class LeapArray<T> {
          * (2) Bucket is up-to-date, then just return the bucket.
          * (3) Bucket is deprecated, then reset current bucket and clean all deprecated buckets.
          *
-         * 先根据角标获取数组中保存的 oldWindow 对象，可能是旧数据，需要判断.
+         */
+        /*
+         * 根据下脚标在环形数组中获取滑动窗口（桶）
          *
-         * (1) oldWindow 不存在, 说明是第一次，创建新 window并存入，然后返回即可
-         * (2) oldWindow的 starTime = 本次请求的 windowStar, 说明正是要找的窗口，直接返回.
-         * (3) oldWindow的 starTime < 本次请求的 windowStar, 说明是旧数据，需要被覆盖，创建
-         *     新窗口，覆盖旧窗口
+         * (1) 如果桶不存在则创建新的桶，并通过CAS将新桶赋值到数组下标位。否则走以下逻辑
+         * (2) 如果桶的开始时间等于刚刚算出来的时间，那么返回当前获取到的桶。
+         * (3) 如果桶的开始时间小于刚刚算出来的开始时间，那么说明这个桶是上一圈用过的桶，重置当前桶。注意：数组的大小是固定的，每次都重复下标，相当于一个环形
+         * (4) 如果桶的开始时间大于刚刚算出来的开始时间，理论上不应该出现这种情况。
          */
         while (true) {
-            //在窗口数组中获得窗口
+            //在窗口数组中获得窗口，如果样本窗口数为2，则这个array最多只有2个元素，如果样本窗口数为60，则这个array最多只有60个元素
             WindowWrap<T> old = array.get(idx);
             if (old == null) {
                 /*

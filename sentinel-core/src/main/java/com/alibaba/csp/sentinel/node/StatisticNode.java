@@ -91,6 +91,7 @@ public class StatisticNode implements Node {
 
     /**
      * 秒级统计
+     * 秒级滑动窗口，2 个时间窗口大小为 500毫秒的 Bucket
      * SampleCountProperty.SAMPLE_COUNT：一个时间窗口中样本窗口的数量，默认为 2，就是把 1秒分为 2个小时间窗
      * IntervalProperty.INTERVAL：是滑动窗口的时间间隔，默认为 1 秒
      *
@@ -102,12 +103,15 @@ public class StatisticNode implements Node {
 
     /**
      * 分钟级统计
+     * 分钟级滑动窗口，60 个 Bucket 数组，每个 Bucket 统计的时间窗口大小为 1 秒
+     *
      * Holds statistics of the recent 60 seconds. The windowLengthInMs is deliberately set to 1000 milliseconds,
      * meaning each bucket per second, in this way we can get accurate statistics of each second.
      */
     private transient Metric rollingCounterInMinute = new ArrayMetric(60, 60 * 1000, false);
 
     /**
+     * 统计并发使用的线程数
      * The counter for thread count.
      */
     private LongAdder curThreadNum = new LongAdder();

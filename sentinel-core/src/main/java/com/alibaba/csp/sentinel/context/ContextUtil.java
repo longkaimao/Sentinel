@@ -117,9 +117,20 @@ public class ContextUtil {
         return trueEnter(name, origin);
     }
 
+    /**
+     * 这里主要完成以下两件事：
+     * 1、如果没有Context，则创建Context
+     * 2、创建EntranceNode
+     * 
+     * @param name
+     * @param origin
+     * @return
+     */
     protected static Context trueEnter(String name, String origin) {
+        // 这个context是从本地线程中获取的，所以每次请求，都会生成一个。
         Context context = contextHolder.get();
         if (context == null) {
+            // 先从缓存中取，如果缓存中没有，再去创建
             Map<String, DefaultNode> localCacheNameMap = contextNameNodeMap;
             DefaultNode node = localCacheNameMap.get(name);
             if (node == null) {
@@ -127,18 +138,23 @@ public class ContextUtil {
                     setNullContext();
                     return NULL_CONTEXT;
                 } else {
+                    // 缓存中没有，准备创建一个
                     LOCK.lock();
                     try {
+                        // 双重检测锁
                         node = contextNameNodeMap.get(name);
                         if (node == null) {
                             if (contextNameNodeMap.size() > Constants.MAX_CONTEXT_NAME_SIZE) {
                                 setNullContext();
                                 return NULL_CONTEXT;
                             } else {
+                                // 这个name在web中就是默认的sentinel_spring_web_context
                                 node = new EntranceNode(new StringResourceWrapper(name, EntryType.IN), null);
                                 // Add entrance node.
+                                // 把这个EntranceNode加入到root的子节点中
                                 Constants.ROOT.addChild(node);
 
+                                // 利用写时复制思想覆盖缓存数据
                                 Map<String, DefaultNode> newMap = new HashMap<>(contextNameNodeMap.size() + 1);
                                 newMap.putAll(contextNameNodeMap);
                                 newMap.put(name, node);
@@ -152,6 +168,7 @@ public class ContextUtil {
             }
             context = new Context(node, name);
             context.setOrigin(origin);
+            // 保存到ThreadLocal中
             contextHolder.set(context);
         }
 
