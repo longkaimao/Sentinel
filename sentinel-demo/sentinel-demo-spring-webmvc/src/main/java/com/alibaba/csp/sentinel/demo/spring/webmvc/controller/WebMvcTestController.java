@@ -17,6 +17,12 @@ package com.alibaba.csp.sentinel.demo.spring.webmvc.controller;
 
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+
+import com.alibaba.csp.sentinel.Entry;
+import com.alibaba.csp.sentinel.EntryType;
+import com.alibaba.csp.sentinel.SphU;
+import com.alibaba.csp.sentinel.annotation.SentinelResource;
+import com.alibaba.csp.sentinel.slots.block.BlockException;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -32,7 +38,7 @@ public class WebMvcTestController {
 
     @GetMapping("/hello")
     @ResponseBody
-    public String apiHello() {
+    public String apiHello(String name,String age) {
         doBusiness();
         return "Hello!";
     }
@@ -66,12 +72,18 @@ public class WebMvcTestController {
     }
 
     private void doBusiness() {
-        Random random = new Random(1);
-        try {
-            TimeUnit.MILLISECONDS.sleep(random.nextInt(100));
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        try(Entry entry = SphU.entry("test-sentinel")) {
+            System.out.println("success");
+            Random random = new Random(1);
+//            try {
+//                TimeUnit.MILLISECONDS.sleep(random.nextInt(100));
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
+        }catch (BlockException e){
+            System.out.println("被限流了");
         }
     }
+
 
 }

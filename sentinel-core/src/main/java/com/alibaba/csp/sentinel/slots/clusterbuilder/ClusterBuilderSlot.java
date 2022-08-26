@@ -107,7 +107,7 @@ public class ClusterBuilderSlot extends AbstractLinkedProcessorSlot<DefaultNode>
                 }
             }
         }
-        // 3、、将资源的 DefaultNode与 ClusterNode关联
+        // 3、将资源的 DefaultNode与 ClusterNode关联
         node.setClusterNode(clusterNode);
 
         /*

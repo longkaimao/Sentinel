@@ -126,8 +126,11 @@ public final class ParamFlowChecker {
 
     static boolean passDefaultLocalCheck(ResourceWrapper resourceWrapper, ParamFlowRule rule, int acquireCount,
                                          Object value) {
+        // 得到令牌桶
         ParameterMetric metric = getParameterMetric(resourceWrapper);
+        // 用来记录剩余令牌数量，不需要使用定时器，每次请求来的时候，判断时间差，如果没有超过，且令牌不足，则补足令牌
         CacheMap<Object, AtomicLong> tokenCounters = metric == null ? null : metric.getRuleTokenCounter(rule);
+        // 用来记录上一个请求的时间
         CacheMap<Object, AtomicLong> timeCounters = metric == null ? null : metric.getRuleTimeCounter(rule);
 
         if (tokenCounters == null || timeCounters == null) {
@@ -136,6 +139,7 @@ public final class ParamFlowChecker {
 
         // Calculate max token count (threshold)
         Set<Object> exclusionItems = rule.getParsedHotItems().keySet();
+        // 允许的令牌数量
         long tokenCount = (long)rule.getCount();
         if (exclusionItems.contains(value)) {
             tokenCount = rule.getParsedHotItems().get(value);
@@ -153,7 +157,9 @@ public final class ParamFlowChecker {
         while (true) {
             long currentTime = TimeUtil.currentTimeMillis();
 
+            // 取出当前时间前最后请求的时间
             AtomicLong lastAddTokenTime = timeCounters.putIfAbsent(value, new AtomicLong(currentTime));
+            // 没有请求过
             if (lastAddTokenTime == null) {
                 // Token never added, just replenish the tokens and consume {@code acquireCount} immediately.
                 tokenCounters.putIfAbsent(value, new AtomicLong(maxCount - acquireCount));
@@ -163,6 +169,7 @@ public final class ParamFlowChecker {
             // Calculate the time duration since last token was added.
             long passTime = currentTime - lastAddTokenTime.get();
             // A simplified token bucket algorithm that will replenish the tokens only when statistic window has passed.
+            // 本次请求和上次请求超过指定时间了，说明很久没有请求来了。
             if (passTime > rule.getDurationInSec() * 1000) {
                 AtomicLong oldQps = tokenCounters.putIfAbsent(value, new AtomicLong(maxCount - acquireCount));
                 if (oldQps == null) {

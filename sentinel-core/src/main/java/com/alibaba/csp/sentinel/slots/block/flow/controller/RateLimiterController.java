@@ -23,11 +23,19 @@ import com.alibaba.csp.sentinel.util.TimeUtil;
 import com.alibaba.csp.sentinel.node.Node;
 
 /**
+ * 流控中的，排队等待模式走这里
+ * 使用的是漏桶算法
  * @author jialiang.linjl
  */
-public class RateLimiterController implements TrafficShapingController {
+public class  RateLimiterController implements TrafficShapingController {
 
+    /**
+     * 当前规则配置的等待超时时间
+     */
     private final int maxQueueingTimeMs;
+    /**
+     * 当前规则配置的允许的阈值
+     */
     private final double count;
 
     private final AtomicLong latestPassedTime = new AtomicLong(-1);
@@ -42,6 +50,16 @@ public class RateLimiterController implements TrafficShapingController {
         return canPass(node, acquireCount, false);
     }
 
+    /**
+     *  主要逻辑：
+     *  1、先计算每两次请求的间隔时间
+     *  2、计算本次请求是否在上次请求的间隔时间后，如果在，则直接放行
+     *  3、如果不在，再计算等待时间，如果已经超时，则拒绝，否则进行等待（Thread.sleep(waitTime);）
+     * @param node resource node
+     * @param acquireCount count to acquire 当前请求需要的数量
+     * @param prioritized whether the request is prioritized
+     * @return
+     */
     @Override
     public boolean canPass(Node node, int acquireCount, boolean prioritized) {
         // Pass when acquire count is less or equal than 0.
@@ -58,7 +76,7 @@ public class RateLimiterController implements TrafficShapingController {
         // 获取当前时间
         long currentTime = TimeUtil.currentTimeMillis();
         // Calculate the interval between every two requests.
-        // 计算两次请求之间允许的最小时间间隔
+        // 计算两次请求之间允许的最小时间间隔，（请求数量 / 阈值） * 1000
         long costTime = Math.round(1.0 * (acquireCount) / count * 1000);
 
         // Expected pass time of this request.

@@ -169,7 +169,7 @@ public class NodeSelectorSlot extends AbstractLinkedProcessorSlot<Object> {
          * The answer is all {@link DefaultNode}s with same resource name share one
          * {@link ClusterNode}. See {@link ClusterBuilderSlot} for detail.
          */
-        // 尝试获取 当前资源的 DefaultNode
+        // 尝试获取 当前context名称的 DefaultNode，注意：这里是根据context来获取node，说明对一同一个资源，会有多个链路
         DefaultNode node = map.get(context.getName());
         if (node == null) {
             synchronized (this) {

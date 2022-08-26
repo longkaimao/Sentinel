@@ -25,6 +25,7 @@ import com.alibaba.csp.sentinel.spi.Spi;
 import java.util.List;
 
 /**
+ * 热点参数限流，使用了令牌桶算法进行实现
  * A processor slot that is responsible for flow control by frequent ("hot spot") parameters.
  *
  * @author jialiang.linjl
