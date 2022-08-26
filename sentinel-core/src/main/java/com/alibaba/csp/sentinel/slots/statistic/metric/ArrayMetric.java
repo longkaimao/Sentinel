@@ -253,7 +253,7 @@ public class ArrayMetric implements Metric {
     public void addPass(int count) {
         // 获取当前时间所在的时间窗
         WindowWrap<MetricBucket> wrap = data.currentWindow();
-        // 计数器 +1
+        // 当前时间窗口的计数 +1
         wrap.value().addPass(count);
     }
 

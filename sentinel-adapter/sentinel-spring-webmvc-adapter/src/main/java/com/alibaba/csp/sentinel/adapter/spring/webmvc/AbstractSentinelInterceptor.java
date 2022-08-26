@@ -113,9 +113,9 @@ public abstract class AbstractSentinelInterceptor implements HandlerInterceptor 
             
             // Parse the request origin using registered origin parser.
             String origin = parseOrigin(request);
-            // 得到上下文名称，后面用于创建入口Node
+            // 得到上下文名称，后面用于创建入口Node。对于web请求，此处都为sentinel_spring_web_context
             String contextName = getContextName(request);
-            // 1. 创建Context和EntranceNode
+            // 1. 创建Context和EntranceNode，并设置Context到ThreadLocal中
             ContextUtil.enter(contextName, origin);
             // 2. 执行此资源的流控入口
             Entry entry = SphU.entry(resourceName, ResourceTypeConstants.COMMON_WEB, EntryType.IN);

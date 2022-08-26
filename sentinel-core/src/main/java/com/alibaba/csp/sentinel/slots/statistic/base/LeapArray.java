@@ -38,6 +38,9 @@ import com.alibaba.csp.sentinel.util.TimeUtil;
  *
  * 添加数据的时候，先判断当前走到哪个窗口了（当前时间(s) % 60 即可），然后需要判断这个窗口是否是过期数据，如果是过期数据（窗口代表的时间距离当前已经超过 1 分钟），需要先重置这个窗口实例的数据。
  * 统计数据同理，如统计过去一分钟的 QPS 数据，就是将每个窗口的值相加，当中需要判断窗口数据是否是过期数据，即判断窗口的 WindowWrap 实例是否是一分钟内的数据。
+ *
+ * 时间窗口：大的窗口
+ * 样本窗口：在一个时间窗口内，分出来的多个小窗口，每一个小窗口就是一个样本窗口。
  * </p>
  *
  * @param <T> type of statistic data
@@ -47,13 +50,13 @@ import com.alibaba.csp.sentinel.util.TimeUtil;
  */
 public abstract class LeapArray<T> {
     /**
-     * 每一个小窗口（样本窗口）的长度  =  intervalInMs / sampleCount
+     * 每一个样本窗口的长度  =  intervalInMs / sampleCount
      * 对于秒级，其值是500
      * 对于分钟级，其值是1000
      */
     protected int windowLengthInMs;
     /**
-     * 一个时间窗中样本窗口的数量
+     * 一个时间窗口里面样本窗口的数量
      * 对于秒级，其值是2
      * 对于分钟级，其值是60
      */
@@ -164,7 +167,7 @@ public abstract class LeapArray<T> {
 
     /**
      * 1、先计算当前时间在窗口中的位置，得到当前窗口
-     * 2、再计算当前窗口的开始时间
+     * 2、再计算当前时间所在的窗口的开始时间
      * 3、比较当前时间和窗口的开始时间，进行处理：要么新建窗口并返回当前窗口，要么直接返回当前窗口，要么重置窗口后返回当前窗口
      *
      * Get bucket item at provided timestamp.
@@ -178,10 +181,11 @@ public abstract class LeapArray<T> {
             return null;
         }
 
-        //计算时间窗口的索引
+        // 计算时间窗口的索引，实际上，因为窗口是一个环形数组，所以，其范围只可能在0 ~（sampleCount-1）
+        // 取到idx后，就可以得到当前时间所在窗口的开始时间，通过对比这个窗口的开始时间和下一步计算出来当前时间所在窗口的开始时间，就能定位到窗口的位置了。
         int idx = calculateTimeIdx(timeMillis);
         // Calculate current bucket start time.
-        // 计算当前时间窗口的开始时间
+        // 计算当前时间所在的窗口的开始时间，这个可以理解为时间是一直往前走的，每一个当前时间，必然属于某一个窗口，此处就是返回这个窗口的开始时间
         long windowStart = calculateWindowStart(timeMillis);
 
         /*

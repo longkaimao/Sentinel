@@ -118,9 +118,10 @@ public class ContextUtil {
     }
 
     /**
-     * 这里主要完成以下两件事：
+     * 这里主要完成以下几件事：
      * 1、如果没有Context，则创建Context
-     * 2、创建EntranceNode
+     * 2、创建EntranceNode，并添加到Root的子节点中
+     * 3、设置到ThreadLocal中
      * 
      * @param name
      * @param origin
@@ -148,7 +149,7 @@ public class ContextUtil {
                                 setNullContext();
                                 return NULL_CONTEXT;
                             } else {
-                                // 这个name在web中就是默认的sentinel_spring_web_context
+                                // 创建EntranceNode，这个name在web中就是默认的sentinel_spring_web_context
                                 node = new EntranceNode(new StringResourceWrapper(name, EntryType.IN), null);
                                 // Add entrance node.
                                 // 把这个EntranceNode加入到root的子节点中

@@ -50,10 +50,6 @@ import com.alibaba.csp.sentinel.spi.Spi;
 public class ClusterBuilderSlot extends AbstractLinkedProcessorSlot<DefaultNode> {
 
     /**
-     * 主要逻辑：
-     * 1、创建一个ClusterNode
-     * 2、放到缓存中
-     * 3、设置当前node的cluster为1中创建的ClusterNode
      * <p>
      * Remember that same resource({@link ResourceWrapper#equals(Object)}) will share
      * the same {@link ProcessorSlotChain} globally, no matter in which context. So if
@@ -77,6 +73,20 @@ public class ClusterBuilderSlot extends AbstractLinkedProcessorSlot<DefaultNode>
 
     private volatile ClusterNode clusterNode = null;
 
+    /**
+     * 主要逻辑：
+     * 1、创建一个ClusterNode
+     * 2、放到缓存中
+     * 3、设置当前node的cluster为1中创建的ClusterNode
+     * 经过此slot后，RootNode、entranceNode、clusterNode的关系就建立起来了。
+     * @param context         current {@link Context}
+     * @param resourceWrapper current resource
+     * @param node
+     * @param count           tokens needed
+     * @param prioritized     whether the entry is prioritized
+     * @param args            parameters of the original call
+     * @throws Throwable
+     */
     @Override
     public void entry(Context context, ResourceWrapper resourceWrapper, DefaultNode node, int count,
                       boolean prioritized, Object... args)
