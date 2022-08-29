@@ -21,11 +21,13 @@ import java.util.List;
 import com.alibaba.csp.sentinel.dashboard.auth.AuthAction;
 import com.alibaba.csp.sentinel.dashboard.auth.AuthService.PrivilegeType;
 import com.alibaba.csp.sentinel.dashboard.repository.rule.RuleRepository;
+import com.alibaba.csp.sentinel.dashboard.rule.CusDynamicRuleProvider;
+import com.alibaba.csp.sentinel.dashboard.rule.CusDynamicRulePublisher;
+import com.alibaba.csp.sentinel.dashboard.rule.nacos.NacosConfigUtil;
 import com.alibaba.csp.sentinel.util.StringUtil;
 
 import com.alibaba.csp.sentinel.dashboard.datasource.entity.rule.SystemRuleEntity;
 import com.alibaba.csp.sentinel.dashboard.discovery.MachineInfo;
-import com.alibaba.csp.sentinel.dashboard.client.SentinelApiClient;
 import com.alibaba.csp.sentinel.dashboard.domain.Result;
 
 import org.slf4j.Logger;
@@ -46,8 +48,11 @@ public class SystemController {
 
     @Autowired
     private RuleRepository<SystemRuleEntity, Long> repository;
+
     @Autowired
-    private SentinelApiClient sentinelApiClient;
+    private CusDynamicRuleProvider<List<SystemRuleEntity>> ruleProvider;
+    @Autowired
+    private CusDynamicRulePublisher<List<SystemRuleEntity>> rulePublisher;
 
     private <R> Result<R> checkBasicParams(String app, String ip, Integer port) {
         if (StringUtil.isEmpty(app)) {
@@ -74,7 +79,8 @@ public class SystemController {
             return checkResult;
         }
         try {
-            List<SystemRuleEntity> rules = sentinelApiClient.fetchSystemRuleOfMachine(app, ip, port);
+            List<SystemRuleEntity> rules = ruleProvider.getRules(app, NacosConfigUtil.SYSTEM_DATA_ID_POSTFIX,
+                    SystemRuleEntity.class);
             rules = repository.saveAll(rules);
             return Result.ofSuccess(rules);
         } catch (Throwable throwable) {
@@ -153,8 +159,12 @@ public class SystemController {
             logger.error("Add SystemRule error", throwable);
             return Result.ofThrowable(-1, throwable);
         }
-        if (!publishRules(app, ip, port)) {
-            logger.warn("Publish system rules fail after rule add");
+        try {
+            if (!publishRules(app, ip, port)) {
+                logger.warn("Publish system rules fail after rule add");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
         return Result.ofSuccess(entity);
     }
@@ -215,8 +225,12 @@ public class SystemController {
             logger.error("save error:", throwable);
             return Result.ofThrowable(-1, throwable);
         }
-        if (!publishRules(entity.getApp(), entity.getIp(), entity.getPort())) {
-            logger.info("publish system rules fail after rule update");
+        try {
+            if (!publishRules(entity.getApp(), entity.getIp(), entity.getPort())) {
+                logger.info("publish system rules fail after rule update");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
         return Result.ofSuccess(entity);
     }
@@ -237,14 +251,19 @@ public class SystemController {
             logger.error("delete error:", throwable);
             return Result.ofThrowable(-1, throwable);
         }
-        if (!publishRules(oldEntity.getApp(), oldEntity.getIp(), oldEntity.getPort())) {
-            logger.info("publish system rules fail after rule delete");
+        try {
+            if (!publishRules(oldEntity.getApp(), oldEntity.getIp(), oldEntity.getPort())) {
+                logger.info("publish system rules fail after rule delete");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
         return Result.ofSuccess(id);
     }
 
-    private boolean publishRules(String app, String ip, Integer port) {
+    private boolean publishRules(String app, String ip, Integer port) throws Exception {
         List<SystemRuleEntity> rules = repository.findAllByMachine(MachineInfo.of(app, ip, port));
-        return sentinelApiClient.setSystemRuleOfMachine(app, ip, port, rules);
+        rulePublisher.publish(app,NacosConfigUtil.SYSTEM_DATA_ID_POSTFIX, rules);
+        return true;
     }
 }
