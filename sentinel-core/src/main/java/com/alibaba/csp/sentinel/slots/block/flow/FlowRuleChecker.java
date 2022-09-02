@@ -156,15 +156,31 @@ public class FlowRuleChecker {
         return null;
     }
 
+    /**
+     * 1. 判断当前节点是client还是server
+     * 2. 向token server发起token请求，内部是使用netty进行通信的
+     * 3. 解析token server的响应结果
+     * @param rule
+     * @param context
+     * @param node
+     * @param acquireCount
+     * @param prioritized
+     * @return
+     */
     private static boolean passClusterCheck(FlowRule rule, Context context, DefaultNode node, int acquireCount,
                                             boolean prioritized) {
         try {
+            // 1. 判断当前节点是client还是server
             TokenService clusterService = pickClusterService();
+            // 如果即不是client，也不是server，则有可能是没有配置token client和server，则退化为单机限流
             if (clusterService == null) {
                 return fallbackToLocalOrPass(rule, context, node, acquireCount, prioritized);
             }
+            // 流控ID，全局唯一
             long flowId = rule.getClusterConfig().getFlowId();
+            // 2. 向token server发起token请求
             TokenResult result = clusterService.requestToken(flowId, acquireCount, prioritized);
+            // 3. 解析token server返回的结果
             return applyTokenResult(result, rule, context, node, acquireCount, prioritized);
             // If client is absent, then fallback to local mode.
         } catch (Throwable ex) {
@@ -199,8 +215,10 @@ public class FlowRuleChecker {
                                                          DefaultNode node,
                                                          int acquireCount, boolean prioritized) {
         switch (result.getStatus()) {
+            // 如果状态码为ok，则说明通过
             case TokenResultStatus.OK:
                 return true;
+                // 需要等待，则让线程进行睡眠
             case TokenResultStatus.SHOULD_WAIT:
                 // Wait for next tick.
                 try {
@@ -209,10 +227,12 @@ public class FlowRuleChecker {
                     e.printStackTrace();
                 }
                 return true;
+                // 没有规则、失败、限流等都返回false，表示要阻止请求
             case TokenResultStatus.NO_RULE_EXISTS:
             case TokenResultStatus.BAD_REQUEST:
             case TokenResultStatus.FAIL:
             case TokenResultStatus.TOO_MANY_REQUEST:
+                // 退化为单机限流
                 return fallbackToLocalOrPass(rule, context, node, acquireCount, prioritized);
             case TokenResultStatus.BLOCKED:
             default:

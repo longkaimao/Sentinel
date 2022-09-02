@@ -75,6 +75,7 @@ public final class Constants {
      */
     public static final int ORDER_NODE_SELECTOR_SLOT = -10000;
     public static final int ORDER_CLUSTER_BUILDER_SLOT = -9000;
+    public static final int ORDER_BUSINESS_BUILDER_SLOT = -9001;
     public static final int ORDER_LOG_SLOT = -8000;
     public static final int ORDER_STATISTIC_SLOT = -7000;
     public static final int ORDER_AUTHORITY_SLOT = -6000;

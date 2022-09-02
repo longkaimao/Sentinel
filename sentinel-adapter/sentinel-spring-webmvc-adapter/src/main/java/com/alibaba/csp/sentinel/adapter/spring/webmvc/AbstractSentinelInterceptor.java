@@ -24,6 +24,7 @@ import com.alibaba.csp.sentinel.ResourceTypeConstants;
 import com.alibaba.csp.sentinel.SphU;
 import com.alibaba.csp.sentinel.Tracer;
 import com.alibaba.csp.sentinel.adapter.spring.webmvc.config.BaseWebMvcConfig;
+import com.alibaba.csp.sentinel.context.Context;
 import com.alibaba.csp.sentinel.context.ContextUtil;
 import com.alibaba.csp.sentinel.log.RecordLog;
 import com.alibaba.csp.sentinel.slots.block.BlockException;
@@ -116,7 +117,9 @@ public abstract class AbstractSentinelInterceptor implements HandlerInterceptor 
             // 得到上下文名称，后面用于创建入口Node。对于web请求，此处都为sentinel_spring_web_context
             String contextName = getContextName(request);
             // 1. 创建Context和EntranceNode，并设置Context到ThreadLocal中
-            ContextUtil.enter(contextName, origin);
+            Context context = ContextUtil.enter(contextName, origin);
+            Object appId = request.getAttribute("appId");
+            context.setAppId(appId == null ? "defaultAppId":appId.toString());
             // 2. 执行此资源的流控入口
             Entry entry = SphU.entry(resourceName, ResourceTypeConstants.COMMON_WEB, EntryType.IN);
             request.setAttribute(baseWebMvcConfig.getRequestAttributeName(), entry);

@@ -151,11 +151,14 @@ public class DefaultClusterTokenClient implements ClusterTokenClient {
         if (notValidRequest(flowId, acquireCount)) {
             return badRequest();
         }
+        // 设置请求参数
         FlowRequestData data = new FlowRequestData().setCount(acquireCount)
             .setFlowId(flowId).setPriority(prioritized);
         ClusterRequest<FlowRequestData> request = new ClusterRequest<>(ClusterConstants.MSG_TYPE_FLOW, data);
         try {
+            // 发起请求
             TokenResult result = sendTokenRequest(request);
+            // 响应结果日志记录
             logForResult(result);
             return result;
         } catch (Exception ex) {
@@ -209,6 +212,7 @@ public class DefaultClusterTokenClient implements ClusterTokenClient {
                 "[DefaultClusterTokenClient] Client not created, please check your config for cluster client");
             return clientFail();
         }
+        // 发起请求，里面实际是是通过netty发送数据
         ClusterResponse response = transportClient.sendRequest(request);
         TokenResult result = new TokenResult(response.getStatus());
         if (response.getData() != null) {

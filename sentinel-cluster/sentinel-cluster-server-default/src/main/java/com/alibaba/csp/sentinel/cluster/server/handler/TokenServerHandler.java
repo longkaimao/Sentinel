@@ -56,6 +56,12 @@ public class TokenServerHandler extends ChannelInboundHandlerAdapter {
         ConnectionManager.removeConnection(remoteAddress);
     }
 
+    /**
+     * 接收token client的请求，判断是否达到限流
+     * @param ctx
+     * @param msg
+     * @throws Exception
+     */
     @Override
     @SuppressWarnings("unchecked")
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
@@ -75,6 +81,7 @@ public class TokenServerHandler extends ChannelInboundHandlerAdapter {
                 RecordLog.warn("[TokenServerHandler] No processor for request type: " + request.getType());
                 writeBadResponse(ctx, request);
             } else {
+                // 这里有两个实现：普通限流和热点参数限流
                 ClusterResponse<?> response = processor.processRequest(request);
                 writeResponse(ctx, response);
             }

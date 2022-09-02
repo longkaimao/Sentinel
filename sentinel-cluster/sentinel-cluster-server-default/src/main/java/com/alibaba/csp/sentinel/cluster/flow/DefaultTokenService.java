@@ -37,15 +37,18 @@ public class DefaultTokenService implements TokenService {
 
     @Override
     public TokenResult requestToken(Long ruleId, int acquireCount, boolean prioritized) {
+        //判断是否是有效的请求
         if (notValidRequest(ruleId, acquireCount)) {
             return badRequest();
         }
         // The rule should be valid.
+        // 根据RuleId查询限流规则
         FlowRule rule = ClusterFlowRuleManager.getFlowRuleById(ruleId);
         if (rule == null) {
             return new TokenResult(TokenResultStatus.NO_RULE_EXISTS);
         }
 
+        //获取令牌
         return ClusterFlowChecker.acquireClusterToken(rule, acquireCount, prioritized);
     }
 

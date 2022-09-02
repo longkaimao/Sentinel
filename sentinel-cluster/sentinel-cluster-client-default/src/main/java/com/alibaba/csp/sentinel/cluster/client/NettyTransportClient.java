@@ -216,6 +216,7 @@ public class NettyTransportClient implements ClusterTransportClient {
         try {
             request.setId(xid);
 
+            // 通过netty发送数据
             channel.writeAndFlush(request);
 
             ChannelPromise promise = channel.newPromise();

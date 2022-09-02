@@ -34,6 +34,7 @@ public class FlowRequestProcessor implements RequestProcessor<FlowRequestData, F
 
     @Override
     public ClusterResponse<FlowTokenResponseData> processRequest(ClusterRequest<FlowRequestData> request) {
+        // 如果是内嵌的tokenServer，那这里得到的tokensService必然是DefaultEmbeddedTokenServer
         TokenService tokenService = TokenServiceProvider.getService();
 
         long flowId = request.getData().getFlowId();

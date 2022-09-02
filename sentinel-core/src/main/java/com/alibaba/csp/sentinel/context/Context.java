@@ -56,6 +56,7 @@ import com.alibaba.csp.sentinel.slots.nodeselector.NodeSelectorSlot;
  */
 public class Context {
 
+    private String appId;
     /**
      * Context name.
      */
@@ -182,6 +183,14 @@ public class Context {
         } else {
             return entranceNode;
         }
+    }
+
+    public String getAppId() {
+        return appId;
+    }
+
+    public void setAppId(String appId) {
+        this.appId = appId;
     }
 
     public Node getOriginNode() {
